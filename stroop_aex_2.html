@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>ÆX – Stroop Test</title>
+
+<style>
+    body {
+        background: #0d0d0d;
+        color: #ffffff;
+        font-family: Arial, sans-serif;
+        text-align: center;
+        padding-top: 80px;
+        margin: 0;
+    }
+
+    h1 {
+        font-size: 52px;
+        margin-bottom: 30px;
+    }
+
+    h2 {
+        font-size: 32px;
+        margin-top: 10px;
+        margin-bottom: 30px;
+    }
+
+    h3 {
+        font-size: 22px;
+        margin-top: 40px;
+        margin-bottom: 15px;
+    }
+
+    #instructions {
+        font-size: 20px;
+        margin-bottom: 30px;
+    }
+
+    #word {
+        font-size: 80px;
+        font-weight: bold;
+        margin-bottom: 40px;
+    }
+
+    .btn {
+        font-size: 24px;
+        padding: 14px 32px;
+        margin: 8px;
+        background: #1b1b1b;
+        border: 2px solid #5fffd2;
+        color: #5fffd2;
+        cursor: pointer;
+        border-radius: 8px;
+    }
+
+    .btn:hover {
+        background: #5fffd2;
+        color: #000000;
+    }
+
+    #startBtn {
+        margin-top: 30px;
+    }
+
+    #result {
+        font-size: 20px;
+        margin-top: 40px;
+        line-height: 1.6;
+        max-width: 900px;
+        margin-left: auto;
+        margin-right: auto;
+        text-align: left;
+    }
+
+    #result p {
+        margin: 6px 0;
+    }
+
+    #legend ul {
+        text-align: left;
+        display: inline-block;
+        margin: 0;
+        padding-left: 20px;
+    }
+
+    #legend li {
+        margin-bottom: 6px;
+    }
+
+    .badge-container {
+        margin-top: 25px;
+        margin-bottom: 10px;
+    }
+
+    .badge-label {
+        font-size: 18px;
+        margin-bottom: 8px;
+    }
+
+    .badge-pill {
+        display: inline-block;
+        padding: 8px 18px;
+        border-radius: 999px;
+        font-size: 16px;
+        font-weight: bold;
+    }
+
+    .badge-good {
+        background-color: #1f8a70;
+        color: #ffffff;
+    }
+
+    .badge-normal {
+        background-color: #b38f1b;
+        color: #000000;
+    }
+
+    .badge-high {
+        background-color: #b3261e;
+        color: #ffffff;
+    }
+
+    .note {
+        font-size: 12px;
+        margin-top: 35px;
+        color: #cccccc;
+        text-align: center;
+    }
+</style>
+</head>
+
+<body>
+
+<h1>Stroop Test</h1>
+
+<div id="instructions">
+    Premi "Inizia" per cominciare.<br>
+    Rispondi al <strong>colore dell’inchiostro</strong>, non alla parola.
+</div>
+
+<button id="startBtn" class="btn">Inizia</button>
+
+<div id="word" style="display:none;"></div>
+
+<div id="buttons" style="display:none;">
+    <button class="btn" onclick="answer('red')">Rosso</button>
+    <button class="btn" onclick="answer('green')">Verde</button>
+    <button class="btn" onclick="answer('blue')">Blu</button>
+    <button class="btn" onclick="answer('yellow')">Giallo</button>
+</div>
+
+<div id="result"></div>
+
+<script>
+/* ------------------------------
+   CONFIGURAZIONE
+--------------------------------*/
+
+// sostituisci l'URL qui sotto con il tuo URL del Web App Google Apps Script se mai lo rigeneri
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxjeGaCwJ6e3jRAZItuCur7F1hK1fv7TvRRpr8Bp1IhQqmp5Fdb_eI8GWAwia-fDN4X/exec";
+
+const NUM_TRIALS = 20;
+
+let trials = [];
+let currentTrial = 0;
+let startTime = 0;
+
+const words = ["RED", "GREEN", "BLUE", "YELLOW"];
+const colors = ["red", "green", "blue", "yellow"];
+
+/* ------------------------------
+   FUNZIONI DI SUPPORTO
+--------------------------------*/
+
+function avg(arr) {
+    if (!arr.length) return 0;
+    return Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+}
+
+function interpretStroopEffect(stroopEffect) {
+    if (stroopEffect < 120) {
+        return {
+            label: "Controllo inibitorio molto efficiente",
+            cssClass: "badge-good"
+        };
+    } else if (stroopEffect <= 220) {
+        return {
+            label: "Performance nella norma",
+            cssClass: "badge-normal"
+        };
+    } else {
+        return {
+            label: "Carico attentivo elevato. possibili interferenze più forti",
+            cssClass: "badge-high"
+        };
+    }
+}
+
+/* ------------------------------
+   AVVIO TEST
+--------------------------------*/
+
+document.getElementById("startBtn").onclick = () => {
+    document.getElementById("instructions").style.display = "none";
+    document.getElementById("startBtn").style.display = "none";
+    document.getElementById("buttons").style.display = "block";
+    nextTrial();
+};
+
+/* ------------------------------
+   NUOVO TRIAL
+--------------------------------*/
+
+function nextTrial() {
+    if (currentTrial >= NUM_TRIALS) {
+        finishTest();
+        return;
+    }
+
+    const word = words[Math.floor(Math.random() * words.length)];
+    const correctColor = colors[Math.floor(Math.random() * colors.length)];
+    const congruent = (word.toLowerCase() === correctColor);
+
+    const wordDiv = document.getElementById("word");
+    wordDiv.style.display = "block";
+    wordDiv.innerHTML = word;
+    wordDiv.style.color = correctColor;
+
+    startTime = performance.now();
+
+    trials.push({
+        word,
+        correctColor,
+        congruent,
+        rt: null,
+        correct: null
+    });
+
+    currentTrial++;
+}
+
+/* ------------------------------
+   RISPOSTA UTENTE
+--------------------------------*/
+
+function answer(chosenColor) {
+    const rt = Math.round(performance.now() - startTime);
+    const trial = trials[currentTrial - 1];
+
+    trial.rt = rt;
+    trial.correct = (chosenColor === trial.correctColor);
+
+    nextTrial();
+}
+
+/* ------------------------------
+   FINE TEST E INVIO DATI
+--------------------------------*/
+
+function finishTest() {
+    document.getElementById("buttons").style.display = "none";
+    document.getElementById("word").style.display = "none";
+
+    const meanRT_con = avg(trials.filter(t => t.congruent).map(t => t.rt));
+    const meanRT_inc = avg(trials.filter(t => !t.congruent).map(t => t.rt));
+    const stroopEffect = Math.round(meanRT_inc - meanRT_con);
+
+    const correctCount = trials.filter(t => t.correct).length;
+    const accuracyRatio = trials.length ? correctCount / trials.length : 0;
+    const accuracyPercent = Math.round(accuracyRatio * 100);
+
+    const sessionId = "AEX-" + Date.now();
+    const interpretation = interpretStroopEffect(stroopEffect);
+
+    // UI DEI RISULTATI
+    const resultDiv = document.getElementById("result");
+    resultDiv.innerHTML = `
+        <h2>Risultati</h2>
+
+        <p><strong>Tempo medio prove congruenti. </strong>${meanRT_con} ms</p>
+        <p><strong>Tempo medio prove incongruenti. </strong>${meanRT_inc} ms</p>
+        <p><strong>Stroop Effect. </strong>${stroopEffect} ms 
+           <span style="font-size:16px;">(differenza tra incongruenti e congruenti)</span>
+        </p>
+        <p><strong>Accuratezza risposte. </strong>${accuracyPercent} percent</p>
+
+        <div class="badge-container">
+            <div class="badge-label">Sintesi del tuo profilo in questo test</div>
+            <div class="badge-pill ${interpretation.cssClass}">
+                ${interpretation.label}
+            </div>
+        </div>
+
+        <div id="legend">
+            <h3>Come leggere questi dati</h3>
+            <ul>
+                <li>I tempi di reazione sono espressi in millisecondi. più basso è il valore, più veloce è la risposta.</li>
+                <li>Lo Stroop Effect misura quanto le parole interferiscono con il colore. un valore più basso indica un miglior controllo inibitorio.</li>
+                <li>Accuratezza sopra il 90 percent indica un buon equilibrio tra velocità e precisione.</li>
+            </ul>
+        </div>
+
+        <p class="note">
+            I dati di questo test sono salvati in forma anonima e aggregata.  
+            non raccogliamo nome, email o altre informazioni che permettano di identificarti personalmente.  
+            il tuo codice di sessione è <strong>${sessionId}</strong> e viene usato solo per analisi statistiche interne.
+        </p>
+    `;
+
+    // PAYLOAD PER GOOGLE SHEET
+    const payload = {
+        sessionId,
+        rtCon: meanRT_con,
+        rtInc: meanRT_inc,
+        stroopEffect,
+        accuracy: accuracyPercent,
+        extra: ""
+    };
+
+    // invio al Web App Google Apps Script
+    fetch(WEBAPP_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload)
+    }).catch(err => {
+        console.error("Errore nell'invio al foglio Google:", err);
+    });
+}
+</script>
+
+</body>
+</html>
