@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>ÆX Stroop Test</title>
+  <style>
+    body {
+      margin: 0;
+      background: #050505;
+      color: #ffffff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 64px;
+      margin-top: 60px;
+      margin-bottom: 20px;
+    }
+
+    #intro {
+      font-size: 22px;
+      margin-bottom: 20px;
+    }
+
+    #legend {
+      max-width: 700px;
+      margin: 0 auto 40px auto;
+      background: #111111;
+      border-radius: 16px;
+      padding: 24px 28px;
+      text-align: left;
+      line-height: 1.6;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.45);
+      font-size: 18px;
+      position: relative;
+      z-index: 1;
+    }
+
+    #legend h2 {
+      margin-top: 0;
+      font-size: 22px;
+    }
+
+    #legend strong {
+      font-weight: 700;
+    }
+
+    #startBtn {
+      font-size: 26px;
+      padding: 16px 40px;
+      margin-top: 10px;
+      margin-bottom: 40px;
+      border-radius: 12px;
+      border: 2px solid #5fffd2;
+      background: #80ffd8;
+      color: #000000;
+      cursor: pointer;
+      position: relative;
+      z-index: 2;
+    }
+
+    #startBtn:hover {
+      background: #5fffd2;
+      color: #000000;
+    }
+
+    #test-area {
+      margin-top: 60px;
+      display: none;
+    }
+
+    #stimulus {
+      font-size: 72px;
+      font-weight: bold;
+      margin-bottom: 40px;
+      min-height: 100px;
+    }
+
+    #mobile-buttons {
+      display: none;
+      margin-top: 20px;
+    }
+
+    #mobile-buttons button {
+      font-size: 22px;
+      padding: 12px 22px;
+      margin: 8px;
+      border-radius: 10px;
+      border: 2px solid #ffffff;
+      background: #111111;
+      color: #ffffff;
+      cursor: pointer;
+    }
+
+    #mobile-buttons button:hover {
+      background: #ffffff;
+      color: #000000;
+    }
+
+    #result {
+      max-width: 900px;
+      margin: 60px auto;
+      text-align: left;
+      font-size: 20px;
+      line-height: 1.6;
+      display: none;
+    }
+
+    #result h2 {
+      font-size: 32px;
+      margin-bottom: 20px;
+    }
+
+    #result p {
+      margin: 6px 0;
+    }
+
+    .badge {
+      display: inline-block;
+      margin-top: 18px;
+      padding: 10px 22px;
+      border-radius: 999px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    .badge-ottimo {
+      background: #1f8a70;
+      color: #ffffff;
+    }
+
+    .badge-buono {
+      background: #b38f1b;
+      color: #000000;
+    }
+
+    .badge-critico {
+      background: #b3261e;
+      color: #ffffff;
+    }
+
+    .note {
+      font-size: 12px;
+      margin-top: 30px;
+      color: #cccccc;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Stroop Test</h1>
+
+  <div id="intro">
+    Premi "Inizia" per cominciare.<br />
+    Rispondi al <strong>colore dell’inchiostro</strong>, non alla parola.<br />
+    Ogni stimolo resta a schermo per circa <strong>1,8 secondi</strong>. poi c’è una breve pausa fissa.
+  </div>
+
+  <div id="legend">
+    <h2>Legenda risposte</h2>
+    <p><strong>Su computer</strong>. usa i tasti vicini alla mano sinistra:</p>
+    <ul>
+      <li>R = Rosso</li>
+      <li>T = Verde</li>
+      <li>D = Blu</li>
+      <li>F = Giallo</li>
+    </ul>
+    <p><strong>Su smartphone o tablet</strong>. tocca il pulsante con il colore corrispondente.</p>
+  </div>
+
+  <button id="startBtn">Inizia</button>
+
+  <div id="test-area">
+    <div id="stimulus"></div>
+
+    <div id="mobile-buttons">
+      <button data-color="red">Rosso</button>
+      <button data-color="green">Verde</button>
+      <button data-color="blue">Blu</button>
+      <button data-color="yellow">Giallo</button>
+    </div>
+  </div>
+
+  <div id="result"></div>
+
+  <script>
+    // URL della Web App Google Apps Script
+    const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbz6VE6RH8D8bVbusqJrlLRvrlp02QL64BPGOynhus4EEOmVdDgMYTD_VkwxMM61A3MG/exec";
+
+    // Parametri test
+    const TOTAL_TRIALS = 80;
+
+    // finestra stimolo e pausa fissa
+    const STIM_DURATION_MS = 1800;  // stimolo visibile
+    const ITI_MS = 400;             // pausa fissa tra stimoli
+
+    const IS_MOBILE = /Mobi|Android/i.test(navigator.userAgent);
+    const DEVICE_TYPE = IS_MOBILE ? "mobile" : "desktop";
+
+    const COLORS = ["red", "green", "blue", "yellow"];
+    const COLOR_WORDS = {
+      red: "ROSSO",
+      green: "VERDE",
+      blue: "BLU",
+      yellow: "GIALLO"
+    };
+
+    const KEY_MAPPING = {
+      "KeyR": "red",
+      "KeyT": "green",
+      "KeyD": "blue",
+      "KeyF": "yellow"
+    };
+
+    let trials = [];
+    let currentTrialIndex = 0;
+    let trialStartTime = null;
+    let respondedInThisTrial = false;
+    let sessionId = null;
+
+    const startBtn = document.getElementById("startBtn");
+    const testArea = document.getElementById("test-area");
+    const stimulusDiv = document.getElementById("stimulus");
+    const mobileButtonsDiv = document.getElementById("mobile-buttons");
+    const resultDiv = document.getElementById("result");
+
+    if (IS_MOBILE) {
+      mobileButtonsDiv.style.display = "block";
+    }
+
+    startBtn.addEventListener("click", () => {
+      sessionId = "AEX-" + Date.now();
+      startBtn.style.display = "none";
+      document.getElementById("intro").style.display = "none";
+      document.getElementById("legend").style.display = "none";
+      testArea.style.display = "block";
+
+      generateTrials();
+      window.addEventListener("keydown", handleKeydown);
+      if (IS_MOBILE) {
+        mobileButtonsDiv.addEventListener("click", handleMobileClick);
+      }
+      nextTrial();
+    });
+
+    function generateTrials() {
+      for (let i = 0; i < TOTAL_TRIALS; i++) {
+        const isCongruent = Math.random() < 0.5;
+        const inkColor = COLORS[Math.floor(Math.random() * COLORS.length)];
+        let wordColor = inkColor;
+
+        if (!isCongruent) {
+          const otherColors = COLORS.filter(c => c !== inkColor);
+          wordColor = otherColors[Math.floor(Math.random() * otherColors.length)];
+        }
+
+        trials.push({
+          inkColor: inkColor,
+          wordColor: wordColor,
+          isCongruent: isCongruent,
+          responded: false,
+          correct: false,
+          rt: null,
+          responseColor: null
+        });
+      }
+    }
+
+    function showStimulus(trial) {
+      stimulusDiv.textContent = COLOR_WORDS[trial.wordColor];
+      stimulusDiv.style.color = trial.inkColor;
+    }
+
+    function clearStimulus() {
+      stimulusDiv.textContent = "";
+    }
+
+    function nextTrial() {
+      if (currentTrialIndex >= TOTAL_TRIALS) {
+        finishTest();
+        return;
+      }
+
+      const trial = trials[currentTrialIndex];
+      respondedInThisTrial = false;
+      showStimulus(trial);
+      trialStartTime = performance.now();
+
+      // durata fissa del trial
+      setTimeout(() => {
+        const t = trials[currentTrialIndex];
+
+        if (!respondedInThisTrial) {
+          t.responded = false;
+          t.correct = false;
+          t.rt = null;
+          t.responseColor = null;
+        }
+
+        clearStimulus();
+        currentTrialIndex++;
+
+        setTimeout(() => {
+          nextTrial();
+        }, ITI_MS);
+      }, STIM_DURATION_MS);
+    }
+
+    function handleResponse(color) {
+      if (currentTrialIndex >= TOTAL_TRIALS) return;
+      if (respondedInThisTrial) return;
+
+      const now = performance.now();
+      const trial = trials[currentTrialIndex];
+
+      respondedInThisTrial = true;
+
+      trial.responded = true;
+      trial.responseColor = color;
+      trial.rt = Math.round(now - trialStartTime);
+      trial.correct = (color === trial.inkColor);
+      // non cambiamo il timing del trial
+    }
+
+    function handleKeydown(e) {
+      if (IS_MOBILE) return;
+      const color = KEY_MAPPING[e.code];
+      if (!color) return;
+      handleResponse(color);
+    }
+
+    function handleMobileClick(e) {
+      const btn = e.target.closest("button[data-color]");
+      if (!btn) return;
+      const color = btn.getAttribute("data-color");
+      handleResponse(color);
+    }
+
+    function mean(arr) {
+      if (!arr.length) return 0;
+      return arr.reduce((a, b) => a + b, 0) / arr.length;
+    }
+
+    function stdDev(arr) {
+      if (arr.length < 2) return 0;
+      const m = mean(arr);
+      const variance = arr.reduce((sum, val) => sum + Math.pow(val - m, 2), 0) / (arr.length - 1);
+      return Math.sqrt(variance);
+    }
+
+    function clamp(x, minVal, maxVal) {
+      return Math.max(minVal, Math.min(maxVal, x));
+    }
+
+    function computeMetrics() {
+      let congruentRTs = [];
+      let incongruentRTs = [];
+      let allRTs = [];
+
+      let congruentTrials = 0;
+      let incongruentTrials = 0;
+      let correctCount = 0;
+      let errorsTotal = 0;
+      let omissions = 0;
+      let commissions = 0;
+
+      trials.forEach(t => {
+        if (t.isCongruent) {
+          congruentTrials++;
+        } else {
+          incongruentTrials++;
+        }
+
+        if (t.rt != null) {
+          allRTs.push(t.rt);
+          if (t.isCongruent) {
+            congruentRTs.push(t.rt);
+          } else {
+            incongruentRTs.push(t.rt);
+          }
+        }
+
+        if (!t.responded) {
+          omissions++;
+          errorsTotal++;
+        } else if (!t.correct) {
+          commissions++;
+          errorsTotal++;
+        } else {
+          correctCount++;
+        }
+      });
+
+      const rtCongruent = Math.round(mean(congruentRTs));
+      const rtIncongruent = Math.round(mean(incongruentRTs));
+      const stroopEffect = rtIncongruent && rtCongruent ? rtIncongruent - rtCongruent : 0;
+      const accuracyPercent = trials.length ? Math.round((correctCount / trials.length) * 100) : 0;
+      const processingSpeedMs = Math.round(mean(allRTs));
+      const responseVariabilityMs = Math.round(stdDev(allRTs));
+
+      const effPenalty = clamp(processingSpeedMs / 20, 0, 100);
+      const inhibitoryControlScore = clamp(100 - (stroopEffect / 4), 0, 100);
+      const cognitiveEfficiencyScore = clamp(
+        0.6 * accuracyPercent + 0.4 * (100 - effPenalty),
+        0,
+        100
+      );
+
+      let performanceBand = "Critico";
+      if (accuracyPercent >= 90 && stroopEffect <= 150) {
+        performanceBand = "Ottimo";
+      } else if (accuracyPercent >= 75) {
+        performanceBand = "Buono";
+      }
+
+      const omissionRate = trials.length ? omissions / trials.length : 1;
+      const qualityFlag =
+        trials.length >= 60 &&
+        accuracyPercent >= 40 &&
+        accuracyPercent <= 100 &&
+        omissionRate < 0.4;
+
+      return {
+        totalTrials: trials.length,
+        congruentTrials,
+        incongruentTrials,
+        rtCongruent,
+        rtIncongruent,
+        stroopEffect,
+        accuracyPercent,
+        errorsTotal,
+        omissions,
+        commissions,
+        processingSpeedMs,
+        responseVariabilityMs,
+        inhibitoryControlScore,
+        cognitiveEfficiencyScore,
+        performanceBand,
+        qualityFlag
+      };
+    }
+
+    function performanceBandText(band) {
+      if (band === "Ottimo") {
+        return "Ottimo controllo inibitorio. interferenze minime";
+      } else if (band === "Buono") {
+        return "Buon controllo inibitorio. margini di miglioramento in condizioni di carico elevato";
+      } else {
+        return "In questo test emergono difficoltà nel gestire le interferenze. utile lavorare su controllo inibitorio e regolazione attentiva";
+      }
+    }
+
+    function performanceBandClass(band) {
+      if (band === "Ottimo") return "badge-ottimo";
+      if (band === "Buono") return "badge-buono";
+      return "badge-critico";
+    }
+
+    function finishTest() {
+      window.removeEventListener("keydown", handleKeydown);
+      if (IS_MOBILE) {
+        mobileButtonsDiv.removeEventListener("click", handleMobileClick);
+      }
+
+      testArea.style.display = "none";
+
+      const m = computeMetrics();
+
+      resultDiv.style.display = "block";
+      resultDiv.innerHTML = `
+        <h2>Risultati</h2>
+        <p><strong>Trials totali. </strong>${m.totalTrials}</p>
+        <p><strong>Tempo medio prove congruenti. </strong>${m.rtCongruent || "-"} ms</p>
+        <p><strong>Tempo medio prove incongruenti. </strong>${m.rtIncongruent || "-"} ms</p>
+        <p><strong>Stroop Effect. </strong>${m.stroopEffect} ms</p>
+        <p><strong>Accuratezza risposte. </strong>${m.accuracyPercent} percent</p>
+        <p><strong>Errori totali. </strong>${m.errorsTotal} (omissioni. ${m.omissions}. commissioni. ${m.commissions})</p>
+        <p><strong>Velocità di elaborazione media. </strong>${m.processingSpeedMs || "-"} ms</p>
+        <p><strong>Variabilità dei tempi di risposta. </strong>${m.responseVariabilityMs || "-"} ms</p>
+        <div class="badge ${performanceBandClass(m.performanceBand)}">
+          ${performanceBandText(m.performanceBand)}
+        </div>
+        <p style="margin-top:20px;">
+          <strong>Inhibitory Control Score. </strong>${Math.round(m.inhibitoryControlScore)} / 100<br>
+          <strong>Cognitive Efficiency Score. </strong>${Math.round(m.cognitiveEfficiencyScore)} / 100
+        </p>
+        <p><strong>Device. </strong>${DEVICE_TYPE}. <strong>Qualità dati. </strong>${m.qualityFlag ? "Valida" : "Da interpretare con cautela"}</p>
+        <p class="note">
+          I dati di questo test sono salvati in forma anonima e aggregata. non raccogliamo nome. email o dati che permettano l’identificazione personale.<br>
+          Il tuo codice di sessione è <strong>${sessionId}</strong> e viene usato solo per analisi statistiche interne.
+        </p>
+      `;
+
+      sendToSheet(m);
+    }
+
+    function sendToSheet(m) {
+      const payload = {
+        timestamp: new Date().toISOString(),
+        session_id: sessionId,
+        device_type: DEVICE_TYPE,
+        total_trials: m.totalTrials,
+        congruent_trials: m.congruentTrials,
+        incongruent_trials: m.incongruentTrials,
+        rt_congruent_ms: m.rtCongruent,
+        rt_incongruent_ms: m.rtIncongruent,
+        stroop_effect_ms: m.stroopEffect,
+        accuracy_percent: m.accuracyPercent,
+        errors_total: m.errorsTotal,
+        omissions: m.omissions,
+        commissions: m.commissions,
+        processing_speed_ms: m.processingSpeedMs,
+        response_variability_ms: m.responseVariabilityMs,
+        inhibitory_control_score: Math.round(m.inhibitoryControlScore),
+        cognitive_efficiency_score: Math.round(m.cognitiveEfficiencyScore),
+        performance_band: m.performanceBand,
+        quality_flag: m.qualityFlag
+      };
+
+      fetch(WEBAPP_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload)
+      }).catch(err => {
+        console.error("Errore invio dati Stroop:", err);
+      });
+    }
+  </script>
+</body>
+</html>
